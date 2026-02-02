@@ -10,12 +10,23 @@ estudante_disciplina = Table(
     Column('disciplina_id', Integer, ForeignKey('disciplinas.id'))
 )
 
+class Professor(Base):
+    __tablename__ = 'professores'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(100), nullable=False)
+    
+    # 1:N com Disciplinas
+    disciplinas = relationship("Disciplina", back_populates="professor")
+
 class Estudante(Base):
     __tablename__ = 'estudantes'
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(100), nullable=False)
     idade = Column(Integer)
+    # Novo campo email
+    email = Column(String(100), nullable=False, unique=True)
     
     # 1:1 com Perfil
     perfil = relationship("Perfil", back_populates="estudante", uselist=False, cascade="all, delete-orphan")
@@ -51,6 +62,10 @@ class Disciplina(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(100), nullable=False)
+    
+    # Novo relacionamento com Professor (N:1)
+    professor_id = Column(Integer, ForeignKey('professores.id'), nullable=True) # Pode ser null inicialmente
+    professor = relationship("Professor", back_populates="disciplinas")
     
     # N:N de volta para Estudante
     estudantes = relationship("Estudante", secondary=estudante_disciplina, back_populates="disciplinas")

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from typing import List
 
 # Importando nossos arquivos locais
@@ -25,22 +26,25 @@ def get_db():
 # 1. POST: Criar Estudante
 @app.post("/estudantes/", response_model=schemas.EstudanteResponse)
 def create_student(student: schemas.EstudanteCreate, db: Session = Depends(get_db)):
-    # Converte o Pydantic (JSON) para o Modelo do Banco (SQLAlchemy)
-    db_student = models.Estudante(**student.model_dump())
-    
-    db.add(db_student)      # Adiciona na "fila" do banco
-    db.commit()             # Confirma a gravação (Salva de verdade)
-    db.refresh(db_student)  # Atualiza o objeto com o ID gerado pelo banco
-    
-    return db_student
+    try:
+        # Converte o Pydantic (JSON) para o Modelo do Banco (SQLAlchemy)
+        db_student = models.Estudante(**student.model_dump())
+        
+        db.add(db_student)      # Adiciona na "fila" do banco
+        db.commit()             # Confirma a gravação (Salva de verdade)
+        db.refresh(db_student)  # Atualiza o objeto com o ID gerado pelo banco
+        
+        return db_student
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Já existe um estudante com este email.")
 
 # 2. GET: Listar Estudantes
-# SQLAlchemy traz os dados relacionados (perfil, matriculas, disciplinas) automaticamente se acessados
-# ou se configurados com lazy='joined'. O Pydantic (from_attributes=True) se encarrega de ler.
+# OTIMIZAÇÃO: joinedload para Perfil evita N+1 queries
 @app.get("/estudantes/", response_model=List[schemas.EstudanteResponse])
 def read_students(db: Session = Depends(get_db)):
-    # SELECT * FROM estudantes;
-    students = db.query(models.Estudante).all()
+    # SELECT * FROM estudantes LEFT JOIN perfis ON ...
+    students = db.query(models.Estudante).options(joinedload(models.Estudante.perfil)).all()
     return students
 
 # 3. GET: Buscar Estudante por ID
@@ -88,10 +92,30 @@ def create_matricula(matricula: schemas.MatriculaCreate, db: Session = Depends(g
 def read_matriculas(db: Session = Depends(get_db)):
     return db.query(models.Matricula).all()
 
+# --- ROTAS DE PROFESSORES ---
+
+@app.post("/professores/", response_model=schemas.ProfessorResponse)
+def create_professor(professor: schemas.ProfessorCreate, db: Session = Depends(get_db)):
+    db_professor = models.Professor(**professor.model_dump())
+    db.add(db_professor)
+    db.commit()
+    db.refresh(db_professor)
+    return db_professor
+
+@app.get("/professores/", response_model=List[schemas.ProfessorResponse])
+def read_professores(db: Session = Depends(get_db)):
+    return db.query(models.Professor).all()
+
 # --- ROTAS DE DISCIPLINAS (N:N) ---
 
 @app.post("/disciplinas/", response_model=schemas.DisciplinaResponse)
 def create_disciplina(disciplina: schemas.DisciplinaCreate, db: Session = Depends(get_db)):
+    # Se houver professor_id, verificar se existe
+    if disciplina.professor_id:
+        db_professor = db.query(models.Professor).filter(models.Professor.id == disciplina.professor_id).first()
+        if not db_professor:
+             raise HTTPException(status_code=404, detail="Professor não encontrado")
+
     db_disciplina = models.Disciplina(**disciplina.model_dump())
     db.add(db_disciplina)
     db.commit()
@@ -100,7 +124,8 @@ def create_disciplina(disciplina: schemas.DisciplinaCreate, db: Session = Depend
 
 @app.get("/disciplinas/", response_model=List[schemas.DisciplinaResponse])
 def read_disciplinas(db: Session = Depends(get_db)):
-    return db.query(models.Disciplina).all()
+    # Otimização: Carregar professor junto
+    return db.query(models.Disciplina).options(joinedload(models.Disciplina.professor)).all()
 
 # Endpoint para Matricular Estudante em Disciplina (Associação N:N)
 @app.post("/estudantes/{estudante_id}/inscrever/{disciplina_id}", status_code=status.HTTP_200_OK)
@@ -115,8 +140,7 @@ def inscrever_estudante(estudante_id: int, disciplina_id: int, db: Session = Dep
     if not db_disciplina:
         raise HTTPException(status_code=404, detail="Disciplina não encontrada")
 
-    # 3. Realizar a associação (SQLAlchemy cuida da tabela associativa)
-    # Se já estiver inscrito, não faz nada ou poderíamos tratar. 
+    # 3. Realizar a associação
     if db_disciplina not in db_estudante.disciplinas:
         db_estudante.disciplinas.append(db_disciplina)
         db.commit()

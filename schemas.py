@@ -1,9 +1,37 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, PositiveInt
 from typing import Optional, List
+
+# --- PROFESSORES ---
+class ProfessorBase(BaseModel):
+    nome: str
+
+class ProfessorCreate(ProfessorBase):
+    pass
+
+class ProfessorResponse(ProfessorBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+# --- DISCIPLINAS (N:N + Professor) ---
+
+class DisciplinaBase(BaseModel):
+    nome: str
+
+class DisciplinaCreate(DisciplinaBase):
+    professor_id: Optional[int] = None
+
+class DisciplinaResponse(DisciplinaBase):
+    id: int
+    professor: Optional[ProfessorResponse] = None
+
+    class Config:
+        from_attributes = True
 
 # --- PERFIL ---
 class PerfilBase(BaseModel):
-    idade: int
+    idade: PositiveInt
     endereco: str
 
 class PerfilCreate(PerfilBase):
@@ -31,25 +59,12 @@ class MatriculaResponse(MatriculaBase):
     class Config:
         from_attributes = True
 
-# --- DISCIPLINAS (N:N) ---
-
-class DisciplinaBase(BaseModel):
-    nome: str
-
-class DisciplinaCreate(DisciplinaBase):
-    pass
-
-class DisciplinaResponse(DisciplinaBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
 # --- ESTUDANTES ---
 
 class EstudanteBase(BaseModel):
     nome: str
-    idade: int
+    idade: PositiveInt
+    email: EmailStr
 
 class EstudanteCreate(EstudanteBase):
     pass
