@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -26,7 +26,6 @@ def get_db():
 @app.post("/estudantes/", response_model=schemas.EstudanteResponse)
 def create_student(student: schemas.EstudanteCreate, db: Session = Depends(get_db)):
     # Converte o Pydantic (JSON) para o Modelo do Banco (SQLAlchemy)
-    # **student.model_dump() desempacota o dicionário: nome="X", idade=Y
     db_student = models.Estudante(**student.model_dump())
     
     db.add(db_student)      # Adiciona na "fila" do banco
@@ -42,8 +41,38 @@ def read_students(db: Session = Depends(get_db)):
     students = db.query(models.Estudante).all()
     return students
 
-# --- DESAFIO RÁPIDO: ROTAS DE MATRÍCULAS ---
-# O professor sugeriu que você fizesse. Aqui está a estrutura base se quiser tentar:
+# 3. GET: Buscar Estudante por ID
+@app.get("/estudantes/{estudante_id}", response_model=schemas.EstudanteResponse)
+def read_student(estudante_id: int, db: Session = Depends(get_db)):
+    # Faz a consulta: SELECT * FROM estudantes WHERE id = estudante_id
+    db_student = db.query(models.Estudante).filter(models.Estudante.id == estudante_id).first()
+    
+    # Validação importante: se o ID não existir, retornamos erro 404
+    if db_student is None:
+        raise HTTPException(status_code=404, detail="Estudante não encontrado")
+    
+    return db_student
+
+# --- ROTAS DE PERFIS ---
+
+@app.post("/perfis/", response_model=schemas.PerfilResponse, status_code=status.HTTP_201_CREATED)
+def create_perfil(perfil: schemas.PerfilCreate, db: Session = Depends(get_db)):
+    # Verifica se o estudante existe
+    db_estudante = db.query(models.Estudante).filter(models.Estudante.id == perfil.estudante_id).first()
+    if not db_estudante:
+        raise HTTPException(status_code=404, detail="Estudante não encontrado para vincular o perfil")
+
+    # Verifica se o estudante já tem perfil (Regra 1:1)
+    if db_estudante.perfil:
+         raise HTTPException(status_code=400, detail="Este estudante já possui um perfil vinculado")
+
+    db_perfil = models.Perfil(**perfil.model_dump())
+    db.add(db_perfil)
+    db.commit()
+    db.refresh(db_perfil)
+    return db_perfil
+
+# --- ROTAS DE MATRÍCULAS ---
 
 @app.post("/matriculas/", response_model=schemas.MatriculaResponse)
 def create_matricula(matricula: schemas.MatriculaCreate, db: Session = Depends(get_db)):
@@ -56,15 +85,3 @@ def create_matricula(matricula: schemas.MatriculaCreate, db: Session = Depends(g
 @app.get("/matriculas/", response_model=List[schemas.MatriculaResponse])
 def read_matriculas(db: Session = Depends(get_db)):
     return db.query(models.Matricula).all()
-
-    # 3. GET: Buscar Estudante por ID
-@app.get("/estudantes/{estudante_id}", response_model=schemas.EstudanteResponse)
-def read_student(estudante_id: int, db: Session = Depends(get_db)):
-    # Faz a consulta: SELECT * FROM estudantes WHERE id = estudante_id
-    db_student = db.query(models.Estudante).filter(models.Estudante.id == estudante_id).first()
-    
-    # Validação importante: se o ID não existir, retornamos erro 404
-    if db_student is None:
-        raise HTTPException(status_code=404, detail="Estudante não encontrado")
-    
-    return db_student

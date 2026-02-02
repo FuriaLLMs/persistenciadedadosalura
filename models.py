@@ -1,20 +1,30 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
 from database import Base
 
 class Estudante(Base):
     __tablename__ = 'estudantes'
 
     id = Column(Integer, primary_key=True, index=True)
-    # Na transcrição ele usa 'nome', mas no JSON da aula 01 estava 'name'.
-    # Mantive 'nome' para seguir o vídeo, mas mantenha a consistência depois!
     nome = Column(String(100), nullable=False)
     idade = Column(Integer)
+    
+    # Relacionamento 1:1 com Perfil
+    perfil = relationship("Perfil", back_populates="estudante", uselist=False, cascade="all, delete-orphan")
+
+class Perfil(Base):
+    __tablename__ = 'perfis'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    idade = Column(Integer)
+    endereco = Column(String(100))
+    estudante_id = Column(Integer, ForeignKey('estudantes.id'), unique=True)
+    
+    estudante = relationship("Estudante", back_populates="perfil")
 
 class Matricula(Base):
     __tablename__ = 'matriculas'
 
     id = Column(Integer, primary_key=True, index=True)
-    # AQUI ESTÁ O PULO DO GATO: A ForeignKey deve apontar para 'tabela.coluna'
-    # Na transcrição diz 'estudante.id', mas o nome da tabela acima é 'estudantes'.
-    student_id = Column(Integer, ForeignKey('estudantes.id'))
+    estudante_id = Column(Integer, ForeignKey('estudantes.id'))
     nome_disciplina = Column(String(100), nullable=False)

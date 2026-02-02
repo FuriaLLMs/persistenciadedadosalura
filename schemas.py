@@ -1,4 +1,20 @@
 from pydantic import BaseModel
+from typing import Optional, List
+
+# --- PERFIL ---
+class PerfilBase(BaseModel):
+    idade: int
+    endereco: str
+
+class PerfilCreate(PerfilBase):
+    estudante_id: int
+
+class PerfilResponse(PerfilBase):
+    id: int
+    estudante_id: int
+
+    class Config:
+        from_attributes = True
 
 # --- ESTUDANTES ---
 
@@ -11,6 +27,7 @@ class EstudanteCreate(EstudanteBase):
 
 class EstudanteResponse(EstudanteBase):
     id: int
+    perfil: Optional[PerfilResponse] = None
 
     class Config:
         # Isso diz ao Pydantic: "Pode ler os dados direto do objeto do banco de dados (SQLAlchemy)"
