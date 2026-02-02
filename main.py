@@ -35,6 +35,8 @@ def create_student(student: schemas.EstudanteCreate, db: Session = Depends(get_d
     return db_student
 
 # 2. GET: Listar Estudantes
+# SQLAlchemy traz os dados relacionados (perfil, matriculas, disciplinas) automaticamente se acessados
+# ou se configurados com lazy='joined'. O Pydantic (from_attributes=True) se encarrega de ler.
 @app.get("/estudantes/", response_model=List[schemas.EstudanteResponse])
 def read_students(db: Session = Depends(get_db)):
     # SELECT * FROM estudantes;
@@ -85,3 +87,39 @@ def create_matricula(matricula: schemas.MatriculaCreate, db: Session = Depends(g
 @app.get("/matriculas/", response_model=List[schemas.MatriculaResponse])
 def read_matriculas(db: Session = Depends(get_db)):
     return db.query(models.Matricula).all()
+
+# --- ROTAS DE DISCIPLINAS (N:N) ---
+
+@app.post("/disciplinas/", response_model=schemas.DisciplinaResponse)
+def create_disciplina(disciplina: schemas.DisciplinaCreate, db: Session = Depends(get_db)):
+    db_disciplina = models.Disciplina(**disciplina.model_dump())
+    db.add(db_disciplina)
+    db.commit()
+    db.refresh(db_disciplina)
+    return db_disciplina
+
+@app.get("/disciplinas/", response_model=List[schemas.DisciplinaResponse])
+def read_disciplinas(db: Session = Depends(get_db)):
+    return db.query(models.Disciplina).all()
+
+# Endpoint para Matricular Estudante em Disciplina (Associação N:N)
+@app.post("/estudantes/{estudante_id}/inscrever/{disciplina_id}", status_code=status.HTTP_200_OK)
+def inscrever_estudante(estudante_id: int, disciplina_id: int, db: Session = Depends(get_db)):
+    # 1. Buscar Estudante
+    db_estudante = db.query(models.Estudante).filter(models.Estudante.id == estudante_id).first()
+    if not db_estudante:
+        raise HTTPException(status_code=404, detail="Estudante não encontrado")
+
+    # 2. Buscar Disciplina
+    db_disciplina = db.query(models.Disciplina).filter(models.Disciplina.id == disciplina_id).first()
+    if not db_disciplina:
+        raise HTTPException(status_code=404, detail="Disciplina não encontrada")
+
+    # 3. Realizar a associação (SQLAlchemy cuida da tabela associativa)
+    # Se já estiver inscrito, não faz nada ou poderíamos tratar. 
+    if db_disciplina not in db_estudante.disciplinas:
+        db_estudante.disciplinas.append(db_disciplina)
+        db.commit()
+        return {"message": "Estudante inscrito com sucesso!"}
+    
+    return {"message": "Estudante já estava inscrito nesta disciplina."}
