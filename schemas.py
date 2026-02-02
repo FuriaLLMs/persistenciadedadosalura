@@ -8,6 +8,9 @@ class ProfessorBase(BaseModel):
 class ProfessorCreate(ProfessorBase):
     pass
 
+class ProfessorUpdate(BaseModel):
+    nome: Optional[str] = None
+
 class ProfessorResponse(ProfessorBase):
     id: int
     
@@ -20,6 +23,10 @@ class DisciplinaBase(BaseModel):
     nome: str
 
 class DisciplinaCreate(DisciplinaBase):
+    professor_id: Optional[int] = None
+
+class DisciplinaUpdate(BaseModel):
+    nome: Optional[str] = None
     professor_id: Optional[int] = None
 
 class DisciplinaResponse(DisciplinaBase):
@@ -36,6 +43,10 @@ class PerfilBase(BaseModel):
 
 class PerfilCreate(PerfilBase):
     estudante_id: int
+
+class PerfilUpdate(BaseModel):
+    idade: Optional[PositiveInt] = None
+    endereco: Optional[str] = None
 
 class PerfilResponse(PerfilBase):
     id: int
@@ -68,6 +79,11 @@ class EstudanteBase(BaseModel):
 
 class EstudanteCreate(EstudanteBase):
     pass
+
+class EstudanteUpdate(BaseModel):
+    nome: Optional[str] = None
+    idade: Optional[PositiveInt] = None
+    email: Optional[EmailStr] = None
 
 class EstudanteResponse(EstudanteBase):
     id: int
